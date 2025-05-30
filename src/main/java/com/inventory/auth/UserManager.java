@@ -1,20 +1,28 @@
 package com.inventory.auth;
 
+import com.inventory.core.UserLog;
 import com.inventory.db.Database;
 import com.inventory.util.Logger;
+import com.inventory.core.User; // NEW: Import the User DTO
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.util.ArrayList; // NEW: Import ArrayList
 import java.util.HashMap;
+import java.util.List; // NEW: Import List
 
 public class UserManager {
     private HashMap<String, AbstractUser> users = new HashMap<>();
 
     public UserManager() {
-        // Predefined admin
+        // Predefined admin (This part is for initial setup, actual users come from DB)
+        // Ensure this logic is handled carefully if you primarily rely on DB for users.
         String adminHashed = PasswordUtil.hashPassword("admin123");
+        // This 'Admin' object might not be stored in the DB if not explicitly registered.
+        // The GUI will read users from the DB.
         users.put("admin", new Admin("admin", adminHashed));
     }
 
@@ -81,6 +89,7 @@ public class UserManager {
 
         return null;
     }
+
     private int countAdmins() {
         String query = "SELECT COUNT(*) AS admin_count FROM users WHERE role = 'ADMIN'";
         try (Connection conn = Database.getConnection();
@@ -140,6 +149,37 @@ public class UserManager {
             return false;
         }
     }
+
+    /**
+     * Retrieves all users from the database for display in the GUI.
+     * Returns a list of User DTOs (id, username, role).
+     * NEW METHOD FOR GUI
+     */
+    public List<User> getAllUsers() {
+        List<User> userList = new ArrayList<>();
+        String query = "SELECT id, username, role FROM users ORDER BY username ASC"; // Assuming 'id' column exists
+
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String username = rs.getString("username");
+                String role = rs.getString("role");
+                userList.add(new User(id, username, role));
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error retrieving user list for GUI: " + e.getMessage());
+            // Consider logging this exception more robustly than just printing to console
+        }
+        return userList;
+    }
+
+
+    // This method is primarily for console output and can be removed if not needed elsewhere
+    // as getAllUsers() will serve the GUI.
     public void listUsers() {
         String query = "SELECT username, role FROM users";
 
@@ -159,6 +199,7 @@ public class UserManager {
             System.out.println("Error retrieving user list: " + e.getMessage());
         }
     }
+
     public void viewLogs() {
         String query = "SELECT username, action, timestamp FROM user_logs ORDER BY timestamp DESC";
 
@@ -194,6 +235,27 @@ public class UserManager {
             System.out.println("Error checking user existence: " + e.getMessage());
             return false;
         }
+    }
+    public List<UserLog> getAllUserLogs() {
+        List<UserLog> logList = new ArrayList<>();
+        String query = "SELECT username, action, timestamp FROM user_logs ORDER BY timestamp DESC";
+
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                String username = rs.getString("username");
+                String action = rs.getString("action");
+                // Assuming 'timestamp' column is stored as a compatible string or TIMESTAMP type
+                // You might need to adjust rs.getTimestamp or parse the string explicitly
+                LocalDateTime timestamp = rs.getTimestamp("timestamp").toLocalDateTime();
+                logList.add(new UserLog(username, action, timestamp));
+            }
+        } catch (SQLException e) {
+            System.out.println("Error retrieving user activity logs for GUI: " + e.getMessage());
+        }
+        return logList;
     }
 
 }
